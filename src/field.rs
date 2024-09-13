@@ -16,6 +16,7 @@ impl PartialEq for Position {
     }
 }
 
+#[derive(Copy, Clone, PartialEq)]
 pub enum Direction {
     Left,
     Right,
@@ -55,8 +56,8 @@ impl SnakeHeadField {
         match self.direction {
             Direction::Left => looking_pos.x -= 1,
             Direction::Right => looking_pos.x += 1,
-            Direction::Up => looking_pos.x += 1,
-            Direction::Down => looking_pos.x -= 1,
+            Direction::Up => looking_pos.y += 1,
+            Direction::Down => looking_pos.y -= 1,
         };
         looking_pos
     }
@@ -71,6 +72,9 @@ impl SnakeHeadField {
         self.pos = self.looking_at();
         self.prev_pos
     }
+    pub fn change_direction(&mut self, new_direction: &Direction) {
+        self.direction = *new_direction;
+    }
     pub fn is_alive(&self) -> bool {
         self.alive
     }
@@ -82,7 +86,7 @@ impl SnakeHeadField {
     }
 }
 
-#[derive(PartialEq)]
+#[derive(Copy, Clone, PartialEq)]
 pub enum Field {
     Invalid,
     Empty,
