@@ -22,14 +22,14 @@ pub struct RenderInfo {
     pub map: Vec<Field>,
 }
 pub trait Renderer {
-    fn render(&self, info: &RenderInfo);
+    fn render(&mut self, info: &RenderInfo);
 }
 
 pub struct Config {
     pub map_size: (u32, u32),
     pub start_tail: u32,
     pub snake_lag_ms: u128,
-    pub snake_accel_ms: u128,
+    pub snake_accel: f64,
 }
 
 pub struct State {
@@ -115,7 +115,7 @@ impl State {
                 shrink = false;
                 self.apple = self.rand_empty_pos(config);
                 self.score += 1;
-                self.lag -= config.snake_accel_ms;
+                self.lag = (self.lag as f64 * (1. - config.snake_accel)) as u128;
             }
             _ => (),
         }
@@ -142,13 +142,13 @@ impl State {
         }
     }
 }
-pub struct Game<C: Controller, R: Renderer> {
+pub struct Game<'a, C: Controller, R: Renderer> {
     config: Config,
     controller: C,
-    renderer: R,
+    renderer: &'a mut R,
 }
-impl<C: Controller, R: Renderer> Game<C, R> {
-    pub fn new(conf: Config, controller: C, renderer: R) -> Self {
+impl<'a, C: Controller, R: Renderer> Game<'a, C, R> {
+    pub fn new(conf: Config, controller: C, renderer: &'a mut R) -> Self {
         Self {
             config: conf,
             controller,
@@ -156,19 +156,17 @@ impl<C: Controller, R: Renderer> Game<C, R> {
         }
     }
 
-    pub fn run(&self) -> u32 {
+    pub fn run(&mut self) -> u32 {
         let mut last_update = Instant::now();
         let mut state = State::new(&self.config);
         while state.snake_head.is_alive() {
-            let loop_start = Instant::now();
             state.handle_input(&self.controller.get_input());
             if last_update.elapsed().as_millis() > state.lag {
                 state.update(&self.config);
                 last_update = Instant::now();
             }
             self.renderer.render(&state.gen_info(&self.config));
-            let sleep_time = 200u64.saturating_sub(loop_start.elapsed().as_millis() as u64);
-            sleep(Duration::from_millis(sleep_time))
+            sleep(Duration::from_millis(0))
         }
         state.score
     }
