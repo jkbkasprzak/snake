@@ -1,4 +1,4 @@
-use crossterm::event::{self, poll, Event, KeyCode};
+use crossterm::event::{self, poll, Event, KeyCode, KeyEvent};
 use crossterm::style::{self, Color};
 use crossterm::terminal::{self, BeginSynchronizedUpdate, EndSynchronizedUpdate};
 use crossterm::{cursor, execute};
@@ -11,21 +11,23 @@ pub struct TerminalController;
 
 impl Controller for TerminalController {
     fn get_input(&self) -> Input {
-        if !poll(Duration::from_millis(0)).unwrap_or(false) {
-            return Input::None;
+        let mut key_event: Option<KeyEvent> = None;
+        while poll(Duration::from_millis(0)).unwrap_or(false) {
+            if let Ok(Event::Key(event)) = event::read() {
+                key_event = Some(event)
+            }
         }
-        let key_event = match event::read() {
-            Ok(Event::Key(key_event)) => key_event,
-            _ => return Input::None,
-        };
-
-        match key_event.code {
-            KeyCode::Char('w') => Input::ChangeDirection(Direction::Up),
-            KeyCode::Char('s') => Input::ChangeDirection(Direction::Down),
-            KeyCode::Char('a') => Input::ChangeDirection(Direction::Left),
-            KeyCode::Char('d') => Input::ChangeDirection(Direction::Right),
-            KeyCode::Esc => Input::Suicide,
-            _ => Input::None,
+        if let Some(event) = key_event {
+            match event.code {
+                KeyCode::Char('w') => Input::ChangeDirection(Direction::Up),
+                KeyCode::Char('s') => Input::ChangeDirection(Direction::Down),
+                KeyCode::Char('a') => Input::ChangeDirection(Direction::Left),
+                KeyCode::Char('d') => Input::ChangeDirection(Direction::Right),
+                KeyCode::Esc => Input::Suicide,
+                _ => Input::None,
+            }
+        } else {
+            Input::None
         }
     }
 }
@@ -69,6 +71,17 @@ impl TerminalDisplay {
         )
         .unwrap();
     }
+    fn print_text(&mut self, text: &str) {
+        execute!(
+            self.stdout,
+            cursor::MoveToNextLine(1),
+            terminal::Clear(terminal::ClearType::CurrentLine),
+            style::SetForegroundColor(style::Color::Yellow),
+            style::Print(text),
+            cursor::MoveToPreviousLine(1)
+        )
+        .unwrap();
+    }
 
     pub fn prepare(&mut self) {
         terminal::enable_raw_mode().unwrap();
@@ -106,7 +119,7 @@ impl TerminalDisplay {
 }
 
 impl Renderer for TerminalDisplay {
-    fn render(&mut self, info: &snake::RenderInfo) {
+    fn render_snake(&mut self, info: &snake::RenderInfo) {
         execute!(
             self.stdout,
             BeginSynchronizedUpdate,
@@ -123,7 +136,7 @@ impl Renderer for TerminalDisplay {
                 snake::field::Field::SnakeTail => self.print_block(Color::DarkGreen),
                 snake::field::Field::Apple => self.print_block(Color::Red),
             }
-            if (i + 1) % info.map_size.1 as usize == 0 {
+            if (i + 1) % info.map_size.0 as usize == 0 {
                 execute!(
                     self.stdout,
                     cursor::MoveToPreviousLine(1),
@@ -138,5 +151,6 @@ impl Renderer for TerminalDisplay {
             EndSynchronizedUpdate
         )
         .unwrap();
+        self.print_text(info.msg);
     }
 }

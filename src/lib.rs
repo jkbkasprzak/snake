@@ -5,7 +5,6 @@ use std::{
     thread::sleep,
     time::{Duration, Instant},
 };
-
 pub mod field;
 
 pub enum Input {
@@ -17,12 +16,13 @@ pub trait Controller {
     fn get_input(&self) -> Input;
 }
 
-pub struct RenderInfo {
+pub struct RenderInfo<'a> {
     pub map_size: (u32, u32),
     pub map: Vec<Field>,
+    pub msg: &'a str,
 }
 pub trait Renderer {
-    fn render(&mut self, info: &RenderInfo);
+    fn render_snake(&mut self, info: &RenderInfo);
 }
 
 pub struct Config {
@@ -139,9 +139,13 @@ impl State {
         RenderInfo {
             map_size: config.map_size,
             map: res,
+            msg: "",
         }
     }
 }
+
+const STAT_INERVAL_MS: u128 = 1000;
+
 pub struct Game<'a, C: Controller, R: Renderer> {
     config: Config,
     controller: C,
@@ -158,14 +162,31 @@ impl<'a, C: Controller, R: Renderer> Game<'a, C, R> {
 
     pub fn run(&mut self) -> u32 {
         let mut last_update = Instant::now();
+        let mut last_collection = Instant::now();
         let mut state = State::new(&self.config);
+
+        let mut fps_counter = 0;
+
+        let mut msg = String::new();
+
         while state.snake_head.is_alive() {
             state.handle_input(&self.controller.get_input());
+
             if last_update.elapsed().as_millis() > state.lag {
                 state.update(&self.config);
                 last_update = Instant::now();
             }
-            self.renderer.render(&state.gen_info(&self.config));
+
+            let mut info = state.gen_info(&self.config);
+            if last_collection.elapsed().as_millis() > STAT_INERVAL_MS {
+                last_collection = Instant::now();
+                msg = format!("FPS: {}", fps_counter);
+                fps_counter = 0;
+            }
+            info.msg = &msg[..];
+            self.renderer.render_snake(&info);
+
+            fps_counter += 1;
             sleep(Duration::from_millis(0))
         }
         state.score
