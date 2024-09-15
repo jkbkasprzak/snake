@@ -1,17 +1,17 @@
 mod terminal;
 
-use snake::{Config, Game};
-use terminal::{TerminalController, TerminalDisplay, Vec2};
+use snake::{Config, Game, Vec2};
+use terminal::{TerminalController, TerminalDisplay};
 
 fn main() {
     let cfg = Config {
-        map_size: (32, 16),
+        map_size: Vec2::new(32, 16),
         start_tail: 2,
         snake_lag_ms: 100,
         snake_accel: 0.05,
     };
     let mut display = TerminalDisplay::new(
-        Vec2::new(cfg.map_size.0 as i32 + 2, cfg.map_size.1 as i32 + 2),
+        Vec2::new(cfg.map_size.x + 2, cfg.map_size.y + 2),
         Vec2::new(1, 1),
     );
     display.prepare();

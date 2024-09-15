@@ -2,7 +2,7 @@ use crossterm::event::{self, poll, Event, KeyCode, KeyEvent};
 use crossterm::style::{self, Color};
 use crossterm::terminal::{self, BeginSynchronizedUpdate, EndSynchronizedUpdate};
 use crossterm::{cursor, execute};
-use snake::field::Direction;
+use snake::logic::{Direction, Vec2};
 use snake::{Controller, Input, Renderer};
 use std::io::{stdout, Stdout};
 use std::time::Duration;
@@ -32,29 +32,15 @@ impl Controller for TerminalController {
     }
 }
 
-pub struct Vec2 {
-    pub x: i32,
-    pub y: i32,
-}
-
-impl Vec2 {
-    pub fn new(x: i32, y: i32) -> Self {
-        Vec2 { x, y }
-    }
-    pub fn prod(&self) -> i32 {
-        self.x * self.y
-    }
-}
-
 const WIDTH: usize = 2;
 pub struct TerminalDisplay {
     stdout: Stdout,
-    size: Vec2,
-    offset: Vec2,
+    size: Vec2<u32>,
+    offset: Vec2<u32>,
 }
 
 impl TerminalDisplay {
-    pub fn new(size: Vec2, offset: Vec2) -> Self {
+    pub fn new(size: Vec2<u32>, offset: Vec2<u32>) -> Self {
         TerminalDisplay {
             stdout: stdout(),
             size,
@@ -128,15 +114,15 @@ impl Renderer for TerminalDisplay {
         )
         .unwrap();
 
-        for (i, field) in info.map.iter().enumerate() {
+        for (i, field) in info.map.fields().iter().enumerate() {
             match field {
-                snake::field::Field::Invalid => self.print_block(Color::Magenta),
-                snake::field::Field::Empty => self.print_block(Color::Black),
-                snake::field::Field::SnakeHead => self.print_block(Color::DarkGreen),
-                snake::field::Field::SnakeTail => self.print_block(Color::DarkGreen),
-                snake::field::Field::Apple => self.print_block(Color::Red),
+                snake::logic::Field::Invalid => self.print_block(Color::Magenta),
+                snake::logic::Field::Empty => self.print_block(Color::Black),
+                snake::logic::Field::SnakeHead => self.print_block(Color::DarkGreen),
+                snake::logic::Field::SnakeTail => self.print_block(Color::DarkGreen),
+                snake::logic::Field::Apple => self.print_block(Color::Red),
             }
-            if (i + 1) % info.map_size.0 as usize == 0 {
+            if (i + 1) % info.map.shape().x as usize == 0 {
                 execute!(
                     self.stdout,
                     cursor::MoveToPreviousLine(1),
@@ -147,10 +133,10 @@ impl Renderer for TerminalDisplay {
         }
         execute!(
             self.stdout,
-            cursor::MoveToNextLine((info.map_size.1 as i32 + self.offset.y) as u16),
+            cursor::MoveToNextLine((info.map.shape().y + self.offset.y) as u16),
             EndSynchronizedUpdate
         )
         .unwrap();
-        self.print_text(info.msg);
+        self.print_text(&info.message);
     }
 }
