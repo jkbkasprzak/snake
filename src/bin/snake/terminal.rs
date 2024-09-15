@@ -5,7 +5,7 @@ use crossterm::{cursor, execute};
 use snake::logic::{Direction, Vec2};
 use snake::{Controller, Input, Renderer};
 use std::io::{stdout, Stdout};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 pub struct TerminalController;
 
@@ -32,24 +32,29 @@ impl Controller for TerminalController {
     }
 }
 
-const WIDTH: usize = 2;
 pub struct TerminalDisplay {
     stdout: Stdout,
     size: Vec2<u32>,
     offset: Vec2<u32>,
+    last_render: Instant,
+    last_text_update: Instant,
 }
 
 impl TerminalDisplay {
+    const WIDTH: usize = 2;
+    const TEXT_UPDATE_INTERVAL: Duration = Duration::from_millis(1_000);
     pub fn new(size: Vec2<u32>, offset: Vec2<u32>) -> Self {
         TerminalDisplay {
             stdout: stdout(),
             size,
             offset,
+            last_render: Instant::now(),
+            last_text_update: Instant::now(),
         }
     }
 
     fn print_block(&mut self, color: style::Color) {
-        let block = "\u{2588}".repeat(WIDTH);
+        let block = "\u{2588}".repeat(Self::WIDTH);
         execute!(
             self.stdout,
             style::SetForegroundColor(color),
@@ -72,7 +77,7 @@ impl TerminalDisplay {
     pub fn prepare(&mut self) {
         terminal::enable_raw_mode().unwrap();
         let screen_space = "\n".repeat(self.size.y as usize);
-        let full_line = "\u{2588}".repeat(WIDTH * self.size.x as usize);
+        let full_line = "\u{2588}".repeat(Self::WIDTH * self.size.x as usize);
         execute!(
             self.stdout,
             style::SetForegroundColor(style::Color::DarkGrey),
@@ -97,24 +102,23 @@ impl TerminalDisplay {
         terminal::disable_raw_mode().unwrap();
         execute!(
             self.stdout,
+            style::Print("\n"),
             style::SetForegroundColor(style::Color::White),
             cursor::Show
         )
         .unwrap();
     }
-}
 
-impl Renderer for TerminalDisplay {
-    fn render_snake(&mut self, info: &snake::RenderInfo) {
+    fn print_snake_map(&mut self, map: &snake::Map) {
         execute!(
             self.stdout,
             BeginSynchronizedUpdate,
             cursor::MoveToPreviousLine(self.offset.y as u16),
-            cursor::MoveRight(self.offset.x as u16 * WIDTH as u16)
+            cursor::MoveRight(self.offset.x as u16 * Self::WIDTH as u16)
         )
         .unwrap();
 
-        for (i, field) in info.map.fields().iter().enumerate() {
+        for (i, field) in map.fields().iter().enumerate() {
             match field {
                 snake::logic::Field::Invalid => self.print_block(Color::Magenta),
                 snake::logic::Field::Empty => self.print_block(Color::Black),
@@ -122,21 +126,42 @@ impl Renderer for TerminalDisplay {
                 snake::logic::Field::SnakeTail => self.print_block(Color::DarkGreen),
                 snake::logic::Field::Apple => self.print_block(Color::Red),
             }
-            if (i + 1) % info.map.shape().x as usize == 0 {
+            if (i + 1) % map.shape().x as usize == 0 {
                 execute!(
                     self.stdout,
                     cursor::MoveToPreviousLine(1),
-                    cursor::MoveRight(self.offset.x as u16 * WIDTH as u16)
+                    cursor::MoveRight(self.offset.x as u16 * Self::WIDTH as u16)
                 )
                 .unwrap();
             }
         }
         execute!(
             self.stdout,
-            cursor::MoveToNextLine((info.map.shape().y + self.offset.y) as u16),
+            cursor::MoveToNextLine((map.shape().y + self.offset.y) as u16),
             EndSynchronizedUpdate
         )
         .unwrap();
-        self.print_text(&info.message);
+    }
+}
+
+impl Renderer for TerminalDisplay {
+    fn render_snake(&mut self, state: &snake::State) {
+        self.print_snake_map(&snake::Map::from(state));
+        let fps: f64 = 1000. / self.last_render.elapsed().as_millis() as f64;
+        self.last_render = Instant::now();
+
+        if self.last_text_update.elapsed() >= Self::TEXT_UPDATE_INTERVAL {
+            self.last_text_update = Instant::now();
+            let mut msg = String::new();
+            if !state.started() {
+                msg = "Controls: W/S/A/D/<ESC>".to_string();
+            }
+            let steps_per_s = state.step_interval().as_millis();
+            let real_steps_per_s = state.real_step_interval().as_millis();
+            msg += &format!(
+                " [FPS: {fps:.0}, DELAY: {steps_per_s}ms, REAL_DELAY: {real_steps_per_s}ms]"
+            );
+            self.print_text(&msg);
+        }
     }
 }

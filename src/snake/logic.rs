@@ -1,5 +1,8 @@
 use rand::Rng;
-use std::{collections::VecDeque, time::Instant};
+use std::{
+    collections::VecDeque,
+    time::{Duration, Instant},
+};
 
 #[derive(Copy, Clone, PartialEq)]
 pub struct Vec2<T> {
@@ -88,8 +91,8 @@ impl SnakeHead {
 pub struct Config {
     pub map_size: Vec2<u32>,
     pub start_tail: u32,
-    pub snake_lag_ms: u128,
-    pub snake_accel: f64,
+    pub step_interval: Duration,
+    pub step_accel: f64,
 }
 
 #[derive(Copy, Clone, PartialEq)]
@@ -158,25 +161,14 @@ impl Map {
 }
 
 #[derive(Clone)]
-pub struct RenderInfo {
-    pub map: Map,
-    pub message: String,
-}
-
-impl RenderInfo {
-    pub fn new(map: Map, message: String) -> Self {
-        RenderInfo { map, message }
-    }
-}
-
-#[derive(Clone)]
 pub struct State {
     config: Config,
     score: u32,
     snake_head: SnakeHead,
     snake_tail: VecDeque<Vec2<i32>>,
     apple: Vec2<i32>,
-    lag: u128,
+    step_interval: Duration,
+    last_step_interval: Duration,
     last_update: Instant,
     started: bool,
 }
@@ -197,7 +189,8 @@ impl State {
             snake_head: SnakeHead::new(mid, *tail.back().unwrap(), Direction::Right),
             snake_tail: tail,
             apple: mid,
-            lag: config.snake_lag_ms,
+            step_interval: config.step_interval,
+            last_step_interval: Duration::ZERO,
             last_update: Instant::now(),
             started: false,
         };
@@ -254,9 +247,12 @@ impl State {
     }
 
     pub fn update(&mut self) {
-        if !self.started || self.last_update.elapsed().as_millis() < self.lag {
+        let elapsed: Duration = self.last_update.elapsed();
+        if !self.started || elapsed < self.step_interval {
             return;
         }
+        self.last_step_interval = elapsed;
+        self.last_update = Instant::now();
         self.snake_tail.push_back(self.snake_head.advance());
 
         let mut shrink = true;
@@ -267,23 +263,24 @@ impl State {
                 shrink = false;
                 self.apple = self.rand_empty_pos();
                 self.score += 1;
-                self.lag = (self.lag as f64 * (1. - self.config.snake_accel)) as u128;
+                self.step_interval = self.step_interval.mul_f64(1. - self.config.step_accel)
             }
             _ => (),
         }
         if shrink {
             self.snake_tail.pop_front();
         }
-        self.last_update = Instant::now();
     }
-    pub fn render_info(&self) -> RenderInfo {
-        let msg = if !self.started {
-            "Press W/S/A/D/<ESC> to play"
-        } else {
-            ""
-        }
-        .to_string();
-        RenderInfo::new(Map::from(self), msg)
+
+    pub fn step_interval(&self) -> Duration {
+        self.step_interval
+    }
+    pub fn real_step_interval(&self) -> Duration {
+        self.last_step_interval
+    }
+
+    pub fn started(&self) -> bool {
+        self.started
     }
 
     pub fn is_terminal(&self) -> bool {

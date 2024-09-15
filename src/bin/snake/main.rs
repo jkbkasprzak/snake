@@ -1,5 +1,7 @@
 mod terminal;
 
+use std::time::Duration;
+
 use snake::{Config, Game, Vec2};
 use terminal::{TerminalController, TerminalDisplay};
 
@@ -7,8 +9,8 @@ fn main() {
     let cfg = Config {
         map_size: Vec2::new(32, 16),
         start_tail: 2,
-        snake_lag_ms: 100,
-        snake_accel: 0.05,
+        step_interval: Duration::from_millis(100),
+        step_accel: 0.05,
     };
     let mut display = TerminalDisplay::new(
         Vec2::new(cfg.map_size.x + 2, cfg.map_size.y + 2),
