@@ -129,6 +129,7 @@ impl State {
     }
 
     pub fn gen_info(&self, config: &Config) -> RenderInfo {
+        //bounds should be checked here
         let size = config.map_size.0 * config.map_size.1;
         let mut res = [Field::Empty].repeat(size as usize);
         for pos in &self.snake_tail {
@@ -168,7 +169,7 @@ impl<'a, C: Controller, R: Renderer> Game<'a, C, R> {
         let mut fps_counter = 0;
 
         let mut msg = String::new();
-
+        //TODO: Add 2 separate threads for render and logic
         while state.snake_head.is_alive() {
             state.handle_input(&self.controller.get_input());
 
